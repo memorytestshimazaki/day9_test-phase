@@ -2,21 +2,17 @@
 <html lang="ja">
 
 <head>
-
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>単語再認テスト</title>
 
   <!-- jsPsych -->
   <script src="https://unpkg.com/jspsych@7.3.4"></script>
-  
-<script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
   <!-- ボタン回答プラグイン -->
   <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.1.3"></script>
-<script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.3"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.3"></script>
   <style>
-
     html, body {
       width: 100%;
       height: 100%;
@@ -24,9 +20,7 @@
       padding: 0;
       background-color: white;
     }
-
     /* 画面中央配置 */
-
     .jspsych-display-element {
       display: flex !important;
       justify-content: center !important;
@@ -34,83 +28,58 @@
       width: 100vw;
       height: 100vh;
     }
-
     .center-text {
       width: 100%;
       text-align: center;
       font-family: sans-serif;
     }
-
   </style>
-
 </head>
 
 <body></body>
 
 <script>
-
 /* ========================================
    GASのURL
 ======================================== */
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwj995Kx89a03AbUmvUfjdOJRjVGAQKiJvt1zoBC6myGpVMduFg2la6dAoUtqiO1CZy/exec";
 
-/* ↓ここを自分のURLに変更 */
-
-const GAS_URL =
-  "https://script.google.com/macros/s/AKfycbykXLPo7yOkRlGzwbBA8leKtM4_Qqq_wF9uLB9GwVDpDaYfkJb47is2StaHIp-OLpiR/exec"
 /* ========================================
    jsPsych 初期化
 ======================================== */
-
 const jsPsych = initJsPsych();
-
 const DAY = 9;
-
 let timeline = [];
 let participant_id = "";
 
+// ユーザーID入力
 timeline.push({
-
   type: jsPsychSurveyText,
-
   questions: [
-
     {
       prompt: "ユーザーID（半角数字4桁）を入力してください",
       required: true
     }
-
   ],
-
   button_label: "次へ",
-
   on_finish: function(data){
-
-    participant_id =
-      data.response.Q0;
-
+    participant_id = data.response.Q0;
   }
-
 });
 
 /* ========================================
    教示画面
 ======================================== */
-
 timeline.push({
-
   type: jsPsychHtmlButtonResponse,
-
   stimulus: `
-    <div class="center-text"
-         style="font-size:25px; line-height:1.8;">
+    <div class="center-text" style="font-size:25px; line-height:1.8;">
       これから単語が表示されます。<br>
       各単語について、<br>
       「見た」または「見てない」を選択してください。
     </div>
   `,
-
   choices: ['開始する']
-
 });
 
 /* ========================================
@@ -155,33 +124,25 @@ let test_words = [
 /* ========================================
    ランダム化
 ======================================== */
-
-test_words =
-  jsPsych.randomization.shuffle(test_words);
+test_words = jsPsych.randomization.shuffle(test_words);
 
 /* ========================================
-   テストフェーズ
+   テストフェーズ（単語を連続表示）
 ======================================== */
-
 test_words.forEach(function(item){
-
   timeline.push({
-
     type: jsPsychHtmlButtonResponse,
-
     stimulus: `
-      <div class="center-text"
-           style="font-size:100px;">
+      <div class="center-text" style="font-size:100px;">
         ${item.word}
       </div>
     `,
-
     choices: ['見た', '見てない'],
     post_trial_gap: 300,
-
+    
     /* 保存データ */
-
     data: {
+      task_type: "recognition", 
       item_id: item.item_id,
       word: item.word,
       old_new: item.old_new,
@@ -189,62 +150,64 @@ test_words.forEach(function(item){
       valence: item.valence,
       arousal: item.arousal,
       emotion: item.emotion
-
     },
 
     /* 回答後処理 */
-
     on_finish: function(data){
-
       /* 正答判定 */
-
-      data.correct =
-        data.response == data.correct_answer;
-
-      /* ------------------------
-         Googleスプレッドシート送信
-      ------------------------ */
-
-fetch(GAS_URL, {
-  method: "POST",
-  mode: "no-cors",
-  keepalive: true,
-  headers: {
-    "Content-Type": "text/plain;charset=utf-8"
-  },
-  body: JSON.stringify({  type: "recognition",
-    participant_id: participant_id,
-    day: DAY,
-    item_id: data.item_id,
-    word: data.word,
-    old_new: data.old_new,
-    valence: data.valence,
-    arousal: data.arousal,
-    emotion: data.emotion,
-    response: data.response,
-    correct_answer: data.correct_answer,
-    correct: data.correct,
-    rt: data.rt
-  })
+      data.correct = data.response == data.correct_answer;
+    }
+  });
 });
 
-    }
+/* ========================================
+   データ送信専用トライアル
+======================================== */
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div class="center-text" style="font-size:18px;">
+      データを保存しています。少々お待ちください...<br>
+      <span style="font-size:14px; color:gray;">（画面は自動的に切り替わります）</span>
+    </div>
+  `,
+  choices: "NO_KEYS",
+  on_load: function() {
+    
+    // 実験データ全体から、単語テストのデータだけを抽出
+    const allData = jsPsych.data.get().filter({task_type: "recognition"}).values(); 
 
-  });
+    // まとめて1回だけGASへ送信する
+    fetch(GAS_URL, {
+      method: "POST",
+      mode: "no-cors", 
+      keepalive: true,
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        all_trials: allData.map(trial => {
+          trial.participant_id = participant_id;
+          trial.day = DAY;
+          return trial;
+        })
+      })
+    });
 
+    // 3秒後に自動で「終了画面」へ進む
+    setTimeout(function() {
+      jsPsych.finishTrial();
+    }, 3000); 
+  }
 });
 
 /* ========================================
    終了画面
 ======================================== */
-
 timeline.push({
-
   type: jsPsychHtmlKeyboardResponse,
-
   stimulus: `
-    <div class="center-text"
-         style="font-size:18px; line-height:1.8;">
+    <div class="center-text" style="font-size:18px; line-height:1.8;">
       ご協力ありがとうございました。<br><br>
       <b>ブラウザの「戻る」操作を行い、<br>
         前のアンケート画面に戻ってください。</b><br>
@@ -256,17 +219,13 @@ timeline.push({
       「次へ」を押して回答を続けてください。<br>
     </div>
   `,
-
   choices: "NO_KEYS"
-
 });
 
 /* ========================================
    実行
-======================================== */
-
+======================================= */
 jsPsych.run(timeline);
 
 </script>
-
 </html>
